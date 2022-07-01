@@ -15,4 +15,5 @@ async def upload_files(
         files: list[UploadFile] = File(...),
         service: RarService = Depends()
 ):
-    return await service.archive_files(files=files, name_archive=name_archive)
+    """Endpoint for upload files"""
+    return await service.upload_archive_files(files=files, name_archive=name_archive)
