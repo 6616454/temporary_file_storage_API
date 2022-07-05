@@ -6,7 +6,7 @@ import tables
 import asyncio
 
 
-async def time_to_delete2(file_id: int):
+async def async_deletion_by_time(file_id: int):
     session = async_session()
     await session.execute(delete(tables.File).filter_by(id=file_id))
     await session.commit()
@@ -14,5 +14,7 @@ async def time_to_delete2(file_id: int):
 
 
 @app.task
-def time_to_delete(file_id: int):
-    asyncio.run(time_to_delete2(file_id))
+def deletion_by_time(file_id: int):
+    # asyncio.run(async_deletion_by_time(file_id))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(async_deletion_by_time(file_id))
