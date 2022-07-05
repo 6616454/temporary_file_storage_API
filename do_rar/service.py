@@ -1,4 +1,5 @@
 import aiofiles
+from aiohttp import ClientSession
 from fastapi import UploadFile, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select, update, delete
@@ -11,14 +12,73 @@ from database import get_session
 
 import tables
 from do_rar.schemas import UpdateFile
+from requests import get_request_session
+from settings import settings
 
-from .tasks import time_to_delete
+from .tasks import deletion_by_time
+
+
+# class LinkShortener:
+#     URL = 'https://goo.su/api/links/create'
+#
+#     HEADERS = {
+#         'x-goo-api-token': settings.token_api
+#     }
+#
+#     PAYLOAD = {}
+#
+#     # def __init__(self, request_session: ClientSession = Depends(get_request_session)):
+#     #     self.request_session = request_session
+#
+#     async def get_file_link(self, file_id: int):
+#         link = f'{settings.main_link}{file_id}'
+#         self.PAYLOAD['url'] = link
+#
+#     async def create_short_link(self, file_id: int):
+#         await self.get_file_link(file_id)
+#
+#         async with self.request_session.post(
+#                 url=self.URL,
+#                 headers=self.HEADERS,
+#                 data=self.PAYLOAD
+#         ) as response:
+#             data = await response.json()
+#
+#         return data['short_url']
 
 
 class RarService:
+    URL = 'https://goo.su/api/links/create'
 
-    def __init__(self, session: AsyncSession = Depends(get_session)):
+    HEADERS = {
+        'x-goo-api-token': settings.token_api
+    }
+
+    PAYLOAD = {}
+
+    def __init__(self, session: AsyncSession = Depends(get_session),
+                 request_session: ClientSession = Depends(get_request_session)):
+        self.request_session = request_session
         self.session = session
+
+    async def get_file_link(self, file_id: int):
+        link = f'{settings.main_link}{file_id}'
+        print(link)
+        self.PAYLOAD['url'] = link
+
+    async def create_short_link(self, file_id: int):
+        await self.get_file_link(file_id)
+
+        async with self.request_session.post(
+                url=self.URL,
+                headers=self.HEADERS,
+                data=self.PAYLOAD
+        ) as response:
+            data = await response.json()
+
+        print(data['short_url'])
+
+        return data['short_url']
 
     @staticmethod
     async def dict_files(files: list[UploadFile]) -> list[dict[str, str]]:
@@ -90,15 +150,20 @@ class RarService:
         new_file = tables.File(
             name=name_archive,
             file=path,
-            link='123',
-            user_id=user.id
+            link='',
+            user_id=user.id,
         )
 
         self.session.add(new_file)
         await self.session.commit()
         await self.session.refresh(new_file)
 
-        time_to_delete.apply_async((new_file.id,), countdown=15)
+        new_file.link = await self.create_short_link(new_file.id)
+
+        await self.session.commit()
+        await self.session.refresh(new_file)
+
+        deletion_by_time.apply_async((new_file.id,), countdown=15)
 
         return new_file
 

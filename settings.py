@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = 'HS256'
     jwt_expiration: int = 3600  # Жизнь токена - час
 
+    main_link: str
+    token_api: str
+
 
 settings = Settings(
     _env_file='.env',

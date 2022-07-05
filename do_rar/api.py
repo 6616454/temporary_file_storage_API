@@ -38,7 +38,7 @@ async def update_file(
         file_id: int,
         file_info: UpdateFile,
         service: RarService = Depends(),
-        user: User = Depends(get_current_user),
+        user: User = Depends(get_current_user)
 ):
     """Endpoint to update the public status of file """
     return await service.update_file_info(file_id, user.id, file_info)
