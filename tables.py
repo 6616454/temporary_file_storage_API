@@ -1,5 +1,7 @@
 import sqlalchemy as sa
+from sqlalchemy import func
 
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -17,9 +19,10 @@ class User(Base):
 
 class File(Base):
     __tablename__ = 'files'
-    id = sa.Column(sa.Integer, primary_key=True)
+    id = sa.Column(UUID(as_uuid=True), primary_key=True)
     name = sa.Column(sa.String(64), nullable=False)
     file = sa.Column(sa.Text, nullable=False)
     link = sa.Column(sa.Text, nullable=True)
     public = sa.Column(sa.Boolean, default=False)
+    created_at = sa.Column(sa.DateTime(timezone=True), server_default=func.now())
     user_id = sa.Column(sa.Integer, sa.ForeignKey('users.id'), nullable=False)

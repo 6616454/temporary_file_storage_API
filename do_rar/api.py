@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, UploadFile, File, Depends
 
 from auth.schemas import User
@@ -14,7 +16,7 @@ router = APIRouter(
 
 @router.get('/{file_id}')
 async def get_file(
-        file_id: int,
+        file_id: UUID,
         service: RarService = Depends(),
         user: User = Depends(get_current_user)
 ):
@@ -35,10 +37,10 @@ async def upload_files(
 
 @router.patch('/{file_id}')
 async def update_file(
-        file_id: int,
+        file_id: UUID,
         file_info: UpdateFile,
         service: RarService = Depends(),
-        user: User = Depends(get_current_user)
+        user: User = Depends(get_current_user),
 ):
     """Endpoint to update the public status of file """
     return await service.update_file_info(file_id, user.id, file_info)
@@ -46,9 +48,11 @@ async def update_file(
 
 @router.delete('/{file_id}')
 async def delete_file(
-        file_id: int,
+        file_id: UUID,
         service: RarService = Depends(),
         user: User = Depends(get_current_user)
 ):
     """Endpoint to delete file"""
     return await service.delete_file(file_id, user.id)
+
+

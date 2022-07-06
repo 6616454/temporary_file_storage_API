@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -6,7 +8,7 @@ class OutputArchive(BaseModel):
 
 
 class OutputFile(BaseModel):
-    id: int
+    id: UUID
     name: str
     file: str
     link: str
