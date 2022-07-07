@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, validator
 
 
 class BaseUser(BaseModel):
@@ -7,7 +7,8 @@ class BaseUser(BaseModel):
 
 
 class UserCreate(BaseUser):
-    password: str
+    password: str = Field(..., min_length=6)
+    password_correct: str
 
 
 class User(BaseUser):

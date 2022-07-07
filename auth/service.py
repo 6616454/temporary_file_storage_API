@@ -16,6 +16,8 @@ from .schemas import User, UserCreate
 from settings import settings
 from .schemas import Token
 
+from auth.exceptions import AuthorizedException
+
 import aiofiles.os
 
 oauth_scheme = OAuth2PasswordBearer(tokenUrl='/auth/sign-in')  # редирект если токен не предоставлен
@@ -26,6 +28,7 @@ async def get_current_user(token: str = Depends(oauth_scheme)) -> User:
 
 
 class AuthService:
+
     @staticmethod
     async def verify_password(plain_password: str, hashed_password) -> bool:
         """Валидация пароля, сырой пароль с формы, хэш пароля, которой берется с БД"""
@@ -35,41 +38,6 @@ class AuthService:
     async def hash_password(password: str) -> str:
         """Хэширование пароля"""
         return bcrypt.hash(password)
-
-    @staticmethod
-    async def create_path_for_user(username: str):
-        path = f'files/{username}'
-        await aiofiles.os.mkdir(path)
-        return path
-
-    @staticmethod
-    async def validate_token(token: str) -> User:
-        """Валидация токена"""
-        exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Could not validate creadentials',
-            headers={
-                'WWW-Authenticate': 'Bearer'
-            },
-        )
-
-        try:
-            payload = jwt.decode(
-                token,
-                settings.jwt_secret,
-                algorithms=[settings.jwt_algorithm]
-            )  # полезная нагрузка, а именно расшифровка токена
-        except JWTError:
-            raise exception from None
-
-        user_data = payload.get('user')
-
-        try:
-            user = User.parse_obj(user_data)
-        except ValidationError:
-            raise exception from None
-
-        return user
 
     @staticmethod
     async def create_token(user: tables.User) -> Token:
@@ -92,32 +60,71 @@ class AuthService:
 
         return Token(access_token=token)
 
-    def __init__(self, session: AsyncSession = Depends(get_session)):
+    def __init__(self, session: AsyncSession = Depends(get_session), exception: AuthorizedException = Depends()):
         self.session = session
+        self.exception = exception
+
+    async def create_path_for_user(self, username: str):
+        try:
+            path = f'files/{username}'
+            await aiofiles.os.mkdir(path)
+
+        except FileExistsError:
+            exception = await self.exception.create_exception(
+                status_code=422,
+                detail='The username is already taken',
+                headers=False
+            )
+
+            raise exception
+
+        return path
+
+    async def validate_token(self, token: str) -> User:
+        """Валидация токена"""
+        exception = await self.exception.create_exception('Could not validate creadentials')
+
+        try:
+            payload = jwt.decode(
+                token,
+                settings.jwt_secret,
+                algorithms=[settings.jwt_algorithm]
+            )  # полезная нагрузка, а именно расшифровка токена
+        except JWTError:
+            raise exception from None
+
+        user_data = payload.get('user')
+
+        try:
+            user = User.parse_obj(user_data)
+        except ValidationError:
+            raise exception from None
+
+        return user
 
     async def register_new_user(self, user_data: UserCreate) -> Token:
 
-        user = tables.User(
-            email=user_data.email,
-            username=user_data.username,
-            password_hash=await self.hash_password(user_data.password),
-            user_path=await self.create_path_for_user(user_data.username)
-        )
+        exception = await self.exception.create_exception("Passwords didn't match", status_code=422,
+                                                          headers=False)
 
-        self.session.add(user)
-        await self.session.commit()
-        await self.session.refresh(user)
+        if user_data.password == user_data.password_correct:
+            user = tables.User(
+                email=user_data.email,
+                username=user_data.username,
+                password_hash=await self.hash_password(user_data.password),
+                user_path=await self.create_path_for_user(user_data.username)
+            )
 
-        return await self.create_token(user)
+            self.session.add(user)
+            await self.session.commit()
+            await self.session.refresh(user)
+
+            return await self.create_token(user)
+
+        raise exception
 
     async def authenticate_user(self, username: str, password: str) -> Token:
-        exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Incorrect username or password',
-            headers={
-                'WWW-Authenticate': 'Bearer'
-            },
-        )
+        exception = await self.exception.create_exception('Incorrect username or password')
 
         user = (
             await self.session
