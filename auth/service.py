@@ -1,6 +1,6 @@
 import datetime
 
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from passlib.hash import bcrypt
 from jose import jwt, JWTError
@@ -16,7 +16,7 @@ from .schemas import User, UserCreate
 from settings import settings
 from .schemas import Token
 
-from auth.exceptions import AuthorizedException
+from exceptions import APIException
 
 import aiofiles.os
 
@@ -27,7 +27,30 @@ async def get_current_user(token: str = Depends(oauth_scheme)) -> User:
     return await AuthService.validate_token(token)
 
 
-class AuthService:
+class AuthService(APIException):
+
+    @classmethod
+    async def validate_token(cls, token: str) -> User:
+        """Валидация токена"""
+        exception = await cls.create_exception('Could not validate creadentials')
+
+        try:
+            payload = jwt.decode(
+                token,
+                settings.jwt_secret,
+                algorithms=[settings.jwt_algorithm]
+            )  # полезная нагрузка, а именно расшифровка токена
+        except JWTError:
+            raise exception from None
+
+        user_data = payload.get('user')
+
+        try:
+            user = User.parse_obj(user_data)
+        except ValidationError:
+            raise exception from None
+
+        return user
 
     @staticmethod
     async def verify_password(plain_password: str, hashed_password) -> bool:
@@ -60,9 +83,8 @@ class AuthService:
 
         return Token(access_token=token)
 
-    def __init__(self, session: AsyncSession = Depends(get_session), exception: AuthorizedException = Depends()):
+    def __init__(self, session: AsyncSession = Depends(get_session)):
         self.session = session
-        self.exception = exception
 
     async def create_path_for_user(self, username: str):
         try:
@@ -70,42 +92,16 @@ class AuthService:
             await aiofiles.os.mkdir(path)
 
         except FileExistsError:
-            exception = await self.exception.create_exception(
+
+            raise await self.create_exception(
                 status_code=422,
                 detail='The username is already taken',
                 headers=False
             )
 
-            raise exception
-
         return path
 
-    async def validate_token(self, token: str) -> User:
-        """Валидация токена"""
-        exception = await self.exception.create_exception('Could not validate creadentials')
-
-        try:
-            payload = jwt.decode(
-                token,
-                settings.jwt_secret,
-                algorithms=[settings.jwt_algorithm]
-            )  # полезная нагрузка, а именно расшифровка токена
-        except JWTError:
-            raise exception from None
-
-        user_data = payload.get('user')
-
-        try:
-            user = User.parse_obj(user_data)
-        except ValidationError:
-            raise exception from None
-
-        return user
-
     async def register_new_user(self, user_data: UserCreate) -> Token:
-
-        exception = await self.exception.create_exception("Passwords didn't match", status_code=422,
-                                                          headers=False)
 
         if user_data.password == user_data.password_correct:
             user = tables.User(
@@ -121,10 +117,14 @@ class AuthService:
 
             return await self.create_token(user)
 
-        raise exception
+        raise await self.create_exception(
+            "Passwords didn't match",
+            status_code=422,
+            headers=False
+        )
 
     async def authenticate_user(self, username: str, password: str) -> Token:
-        exception = await self.exception.create_exception('Incorrect username or password')
+        exception = await self.create_exception('Incorrect username or password')
 
         user = (
             await self.session

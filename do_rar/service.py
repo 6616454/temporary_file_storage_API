@@ -1,12 +1,13 @@
-import os
-
 import aiofiles
+
 from aiohttp import ClientSession
+
 from fastapi import UploadFile, Depends, HTTPException
-from fastapi.responses import FileResponse, Response
-from sqlalchemy import select, update, delete
+from fastapi.responses import FileResponse
+
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import status
+
 from zipstream import AioZipStream
 
 from auth.schemas import User
@@ -17,13 +18,15 @@ from do_rar.schemas import UpdateFile
 from requests import get_request_session
 from settings import settings
 
+from exceptions import APIException
+
 import uuid
 from uuid import UUID
 
 from .tasks import deletion_by_time, clear_temp_files
 
 
-class RarService:
+class RarService(APIException):
     URL = 'https://goo.su/api/links/create'
 
     HEADERS = {
@@ -86,9 +89,10 @@ class RarService:
         if output_file:
             return output_file
 
-        raise HTTPException(
+        raise await self.create_exception(
             status_code=404,
-            detail='The file does not exist or public access to the file is not allowed'
+            detail='The file does not exist or public access to the file is not allowed',
+            headers=False
         )
 
     async def _update_file(self, file_id: UUID, user_id: int, **kwargs):
@@ -135,7 +139,7 @@ class RarService:
         await self.session.refresh(new_file)
 
         clear_temp_files.delay(temp_files)
-        deletion_by_time.apply_async((new_file.id,), countdown=15)
+        deletion_by_time.apply_async((new_file.id,), countdown=300)
 
         return new_file
 
