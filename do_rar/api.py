@@ -46,13 +46,13 @@ async def update_file(
     return await service.update_file_info(file_id, user.id, file_info)
 
 
-@router.delete('/{file_id}')
-async def delete_file(
-        file_id: UUID,
-        service: RarService = Depends(),
-        user: User = Depends(get_current_user)
-):
-    """Endpoint to delete file"""
-    return await service.delete_file(file_id, user.id)
+# @router.delete('/{file_id}')
+# async def delete_file(
+#         file_id: UUID,
+#         service: RarService = Depends(),
+#         user: User = Depends(get_current_user)
+# ):
+#     """Endpoint to delete file"""
+#     return await service.delete_file(file_id, user.id)
 
 
