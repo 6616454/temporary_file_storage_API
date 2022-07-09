@@ -2,6 +2,8 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
+    time_to_delete: int  # YOUR VALUE
+
     database_url: str
 
     redis_host: str
