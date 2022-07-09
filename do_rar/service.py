@@ -143,7 +143,7 @@ class RarService(APIException):
         await self.session.refresh(new_file)
 
         clear_temp_files.delay(temp_files)
-        deletion_by_time.apply_async((new_file.id,), countdown=300)
+        deletion_by_time.apply_async((new_file.id,), countdown=settings.time_to_delete)  # file storage time on the server
 
         return new_file
 

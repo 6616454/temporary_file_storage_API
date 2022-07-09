@@ -10,6 +10,8 @@ import asyncio
 
 
 async def async_deletion_by_time(file_id: UUID):
+    """Deleting a file after the expiration of the storage time on the server"""
+
     session = async_session()
 
     file_object = await session.execute(select(tables.File).filter_by(id=file_id))
