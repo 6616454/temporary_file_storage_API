@@ -14,8 +14,16 @@ router = APIRouter(
 )
 
 
+@router.get('/', response_model=list[OutputFile])
+async def get_file_user(
+        service: RarService = Depends(),
+        user: User = Depends(get_current_user)
+):
+    return await service.get_files(user.id)
+
+
 @router.get('/{file_id}')
-async def get_file(
+async def get_file_for_download(
         file_id: UUID,
         service: RarService = Depends(),
         user: User = Depends(get_current_user)
@@ -45,7 +53,6 @@ async def update_file(
     """Endpoint to update the public status of file """
     return await service.update_file_info(file_id, user.id, file_info)
 
-
 # @router.delete('/{file_id}')
 # async def delete_file(
 #         file_id: UUID,
@@ -54,5 +61,3 @@ async def update_file(
 # ):
 #     """Endpoint to delete file"""
 #     return await service.delete_file(file_id, user.id)
-
-

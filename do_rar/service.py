@@ -107,6 +107,10 @@ class RarService(APIException):
     #
     #     return await self.session.commit()
 
+    async def get_files(self, user_id: int) -> list[tables.File]:
+        files = await self.session.execute(select(tables.File).filter_by(user_id=user_id))
+        return files.scalars().all()
+
     async def upload_archive_files(
             self,
             files: list[UploadFile],
